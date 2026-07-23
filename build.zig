@@ -153,4 +153,19 @@ pub fn build(b: *std.Build) void {
     //
     // Lastly, the Zig build system is relatively simple and self-contained,
     // and reading its source code will allow you to master it.
+
+    const vulkan = b.dependency("vulkan", .{
+        .registry = b.dependency("vulkan_headers", .{}).path("registry/vk.xml"),
+    }).module("vulkan-zig");
+    exe.root_module.addImport("vulkan", vulkan);
+
+    const c = b.addTranslateC(.{
+        .root_source_file = b.path("src/c.h"),
+        .target = target,
+        .optimize = optimize,
+    }).createModule();
+
+    c.linkSystemLibrary("glfw3", .{});
+
+    exe.root_module.addImport("c", c);
 }
