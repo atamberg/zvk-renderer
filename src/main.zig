@@ -2,6 +2,7 @@ const std = @import("std");
 const Io = std.Io;
 
 const zvk_renderer = @import("zvk_renderer");
+const HelloTriangleApplication = @import("HelloTriangleApplication.zig");
 
 pub fn main(init: std.process.Init) !void {
     // Prints to stderr, unbuffered, ignoring potential errors.
@@ -29,6 +30,8 @@ pub fn main(init: std.process.Init) !void {
     try zvk_renderer.printAnotherMessage(stdout_writer);
 
     try stdout_writer.flush(); // Don't forget to flush!
+
+    try HelloTriangleApplication.run();
 }
 
 test "simple test" {
