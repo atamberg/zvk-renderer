@@ -31,7 +31,8 @@ pub fn main(init: std.process.Init) !void {
 
     try stdout_writer.flush(); // Don't forget to flush!
 
-    try HelloTriangleApplication.run();
+    var app: HelloTriangleApplication = .{};
+    try app.run(arena);
 }
 
 test "simple test" {
