@@ -168,4 +168,8 @@ pub fn build(b: *std.Build) void {
     c.linkSystemLibrary("glfw3", .{});
 
     exe.root_module.addImport("c", c);
+
+    const options = b.addOptions();
+    options.addOption(bool, "enable_validation_layers", b.option(bool, "validateVK", "Enable Vulkan Validation Layer") orelse false);
+    exe.root_module.addOptions("options", options);
 }
