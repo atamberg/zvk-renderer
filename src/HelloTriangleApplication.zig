@@ -46,6 +46,8 @@ fn createInstance(self: *HelloTriangleApplication, allocator: Allocator) !void {
     }
 
     const layer_properties = try self.base_wrapper.enumerateInstanceLayerPropertiesAlloc(allocator);
+    defer allocator.free(layer_properties);
+
     for (required_layers.items) |layer| {
         for (layer_properties) |l_prop| {
             const l_prop_name = std.mem.span(@as([*:0]const u8, @ptrCast(&l_prop.layer_name)));
@@ -70,6 +72,8 @@ fn createInstance(self: *HelloTriangleApplication, allocator: Allocator) !void {
     }
 
     const extension_properties = try self.base_wrapper.enumerateInstanceExtensionPropertiesAlloc(null, allocator);
+    defer allocator.free(extension_properties);
+
     for (required_extensions.items) |extension| {
         for (extension_properties) |ext_prop| {
             if ( eq_block: {
