@@ -14,11 +14,15 @@ const height = 600;
 const validation_layers: []const []const u8 = &.{
     "VK_LAYER_KHRONOS_validation",
 };
+const required_device_extensions: []const []const u8 = &.{
+    vk.extensions.khr_swapchain.name,
+};
 
 window: *c.GLFWwindow = undefined,
 instance: vk.InstanceProxy = undefined,
 debug_messager: vk.DebugUtilsMessengerEXT = undefined,
 base_wrapper: vk.BaseWrapper = undefined,
+physical_device: vk.PhysicalDevice = undefined,
 
 pub fn run(self: *HelloTriangleApplication, allocator: Allocator) !void {
     try self.initWindow();
@@ -31,6 +35,71 @@ pub fn run(self: *HelloTriangleApplication, allocator: Allocator) !void {
 fn initVulkan(self: *HelloTriangleApplication, allocator: Allocator) !void {
     try self.createInstance(allocator);
     try self.setupDebugMessenger();
+    try self.pickPhysicalDevice(allocator);
+}
+
+fn pickPhysicalDevice(self: *HelloTriangleApplication, allocator: Allocator) !void {
+    const physical_devices = try self.instance.enumeratePhysicalDevicesAlloc(allocator);
+    defer allocator.free(physical_devices);
+    if (physical_devices.len == 0) {
+        std.debug.print("Failed to find GPU with Vulkan Support!", .{});
+        return error.NoGpuFound;
+    }
+
+    self.physical_device = for (physical_devices) |p_device| {
+        if (try isDeviceSuitable(self.instance, p_device, allocator)) {
+            break p_device;
+        }
+    } else return error.NoGpuFound;
+}
+
+fn isDeviceSuitable(instance: vk.InstanceProxy, p_device: vk.PhysicalDevice, allocator: Allocator) !bool {
+    const device_properties = instance.getPhysicalDeviceProperties(p_device);
+    //const device_features = instance.getPhysicalDeviceFeatures(p_device);
+    const queue_families = try instance.getPhysicalDeviceQueueFamilyPropertiesAlloc(p_device, allocator);
+    defer allocator.free(queue_families);
+
+    const supports_graphics = for (queue_families) |q_family| {
+        if (q_family.queue_flags.graphics_bit) break true;
+    } else false;
+
+    const supports_vulkan_1_3 = device_properties.api_version >= vk.API_VERSION_1_3.toU32();
+
+    const available_device_extensions = try instance.enumerateDeviceExtensionPropertiesAlloc(p_device, null, allocator);
+    defer allocator.free(available_device_extensions);
+
+    var supports_all_required_extensions = true;
+    for (required_device_extensions) |extension| {
+        supports_all_required_extensions &= for (available_device_extensions) |available_ext| {
+            const available_ext_name = std.mem.span(@as([*:0]const u8, @ptrCast(&available_ext.extension_name)));
+            if (std.mem.eql(u8, available_ext_name, extension)) {
+                break true;
+            }
+        } else {
+            std.debug.print("Required device extension not supported: {s}\n", .{extension});
+            return false;
+        };
+    }
+
+
+    var features = vk.PhysicalDeviceFeatures2{ .features = instance.getPhysicalDeviceFeatures(p_device) };
+    instance.getPhysicalDeviceFeatures2(p_device, &features);
+
+    var supports_required_features = true;
+
+    var it_or_null = features.p_next;
+    while (it_or_null) |it| {
+        const it_pdev2 = @as(*vk.PhysicalDeviceFeatures2, @alignCast(@ptrCast(it)));
+        const supports_feature = switch (it_pdev2.s_type) {
+            .physical_device_vulkan_1_1_features => @as(*vk.PhysicalDeviceVulkan11Features, @alignCast(@ptrCast(it))).shader_draw_parameters,
+            .physical_device_vulkan_1_3_features => @as(*vk.PhysicalDeviceVulkan13Features, @alignCast(@ptrCast(it))).dynamic_rendering,
+            .physical_device_extended_dynamic_state_features_ext => @as(*vk.PhysicalDeviceExtendedDynamicStateFeaturesEXT, @alignCast(@ptrCast(it))).extended_dynamic_state,
+            else => .true,
+        };
+        supports_required_features = if (supports_required_features and supports_feature == .true) true else false;
+        it_or_null = it_pdev2.p_next;
+    }
+    return supports_graphics and supports_vulkan_1_3 and supports_all_required_extensions and supports_required_features;
 }
 
 fn createInstance(self: *HelloTriangleApplication, allocator: Allocator) !void {
@@ -86,7 +155,7 @@ fn createInstance(self: *HelloTriangleApplication, allocator: Allocator) !void {
                 break;
             }
         } else {
-            std.debug.print("Required layer not supported: {s}\n", .{extension});
+            std.debug.print("Required Extension not supported: {s}\n", .{extension});
             return error.UnsupportedExtension;
         }
     }
@@ -141,7 +210,7 @@ fn setupDebugMessenger(self: *HelloTriangleApplication) !void {
     const severity_flags = vk.DebugUtilsMessageSeverityFlagsEXT{.warning_bit_ext = true, .error_bit_ext = true};
     const message_type_flags = vk.DebugUtilsMessageTypeFlagsEXT{.general_bit_ext = true, .performance_bit_ext = true, .validation_bit_ext = true};
 
-    self.debug_messager = try self.instance.createDebugUtilsMessengerEXT(&.{.message_severity = severity_flags, .message_type = message_type_flags, .pfn_user_callback = @ptrCast(&debugCallback)}, null);
+    self.debug_messager = try self.instance.createDebugUtilsMessengerEXT(&.{.message_severity = severity_flags, .message_type = message_type_flags, .pfn_user_callback = debugCallback}, null);
 }
 
 fn debugCallback(
@@ -149,7 +218,7 @@ fn debugCallback(
     message_types: vk.DebugUtilsMessageTypeFlagsEXT,
     p_callback_data: ?*const vk.DebugUtilsMessengerCallbackDataEXT,
     p_user_data: ?*anyopaque,
-) vk.Bool32 {
+) callconv(.c) vk.Bool32 {
     _ = message_severity;
     _ = p_user_data;
 
