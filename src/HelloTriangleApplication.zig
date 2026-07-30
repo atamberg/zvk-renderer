@@ -23,6 +23,8 @@ instance: vk.InstanceProxy = undefined,
 debug_messager: vk.DebugUtilsMessengerEXT = undefined,
 base_wrapper: vk.BaseWrapper = undefined,
 physical_device: vk.PhysicalDevice = undefined,
+device: vk.DeviceProxy = undefined,
+graphics_queue: vk.Queue = undefined,
 
 pub fn run(self: *HelloTriangleApplication, allocator: Allocator) !void {
     try self.initWindow();
@@ -36,6 +38,53 @@ fn initVulkan(self: *HelloTriangleApplication, allocator: Allocator) !void {
     try self.createInstance(allocator);
     try self.setupDebugMessenger();
     try self.pickPhysicalDevice(allocator);
+    try self.createLogicalDevice(allocator);
+}
+
+fn createLogicalDevice(self: *HelloTriangleApplication, allocator: Allocator) !void {
+
+    const queue_family_properties = try self.instance.getPhysicalDeviceQueueFamilyPropertiesAlloc(self.physical_device, allocator);
+
+    var graphics_queue_family_property: bool = undefined;
+    var graphics_index: usize = undefined;
+
+    graphics_queue_family_property, graphics_index = for (queue_family_properties, 0..) |qfp, i| {
+        break .{qfp.queue_flags.graphics_bit, i};
+    } else .{false, queue_family_properties.len - 1};
+
+    // Here, along with other places, makes heavy use of references to literals.
+    // As far as I understand, all addresses (&) are to constant literals that
+    // are stored in static memory, so we do not leave dangling pointers when we
+    // exit the stack frame.
+    const device_handler = try self.instance.createDevice(self.physical_device, &vk.DeviceCreateInfo{
+        .p_next = &vk.PhysicalDeviceFeatures2{
+            .features = .{},
+            .p_next = @constCast(&vk.PhysicalDeviceVulkan11Features{
+                .shader_draw_parameters = .true,
+                .p_next = @constCast(&vk.PhysicalDeviceVulkan13Features{
+                    .dynamic_rendering = .true,
+                    .p_next = @constCast(&vk.PhysicalDeviceExtendedDynamicStateFeaturesEXT{
+                        .extended_dynamic_state = .true,
+                    })
+                })
+            })
+        },
+        .queue_create_info_count = 1,
+        .p_queue_create_infos = @ptrCast(&vk.DeviceQueueCreateInfo{
+            .queue_family_index = @intCast(graphics_index),
+            .queue_count = 1,
+            .p_queue_priorities = &.{ 0.5 },
+        }),
+        .enabled_extension_count = required_device_extensions.len,
+        .pp_enabled_extension_names = @ptrCast(required_device_extensions),
+        }, null);
+
+    const device_wrapper = try allocator.create(vk.DeviceWrapper);
+    errdefer allocator.destroy(device_wrapper);
+    device_wrapper.* = vk.DeviceWrapper.load(device_handler, self.instance.wrapper.dispatch.vkGetDeviceProcAddr.?);
+
+    self.device = vk.DeviceProxy.init(device_handler, device_wrapper);
+    self.graphics_queue = self.device.getDeviceQueue(graphics_index, 0);
 }
 
 fn pickPhysicalDevice(self: *HelloTriangleApplication, allocator: Allocator) !void {
@@ -46,7 +95,7 @@ fn pickPhysicalDevice(self: *HelloTriangleApplication, allocator: Allocator) !vo
         return error.NoGpuFound;
     }
 
-    self.physical_device = for (physical_devices) |p_device| {
+    self.physical_device = for (physical_devices) Queue|p_device| {
         if (try isDeviceSuitable(self.instance, p_device, allocator)) {
             break p_device;
         }
@@ -160,7 +209,7 @@ fn createInstance(self: *HelloTriangleApplication, allocator: Allocator) !void {
         }
     }
 
-    const create_info = vk.InstanceCreateInfo{
+    const instance_handle = try self.base_wrapper.createInstance(&vk.InstanceCreateInfo{
         .p_application_info = &vk.ApplicationInfo{
             .p_application_name = "Hello Triangle",
             .application_version = vk.makeApiVersion(0, 1, 0, 0).toU32(),
@@ -172,9 +221,7 @@ fn createInstance(self: *HelloTriangleApplication, allocator: Allocator) !void {
         .pp_enabled_layer_names = @ptrCast(required_layers.items),
         .enabled_extension_count = @intCast(required_extensions.items.len),
         .pp_enabled_extension_names = @ptrCast(required_extensions.items),
-    };
-
-    const instance_handle = try self.base_wrapper.createInstance(&create_info, null);
+    }, null);
     const instance_wrapper = try allocator.create(vk.InstanceWrapper);
     errdefer allocator.destroy(instance_wrapper);
     instance_wrapper.* = vk.InstanceWrapper.load(instance_handle, self.base_wrapper.dispatch.vkGetInstanceProcAddr.?);
