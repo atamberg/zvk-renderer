@@ -46,11 +46,11 @@ fn createLogicalDevice(self: *HelloTriangleApplication, allocator: Allocator) !v
     const queue_family_properties = try self.instance.getPhysicalDeviceQueueFamilyPropertiesAlloc(self.physical_device, allocator);
 
     var graphics_queue_family_property: bool = undefined;
-    var graphics_index: usize = undefined;
+    var graphics_index: u32 = undefined;
 
     graphics_queue_family_property, graphics_index = for (queue_family_properties, 0..) |qfp, i| {
-        break .{qfp.queue_flags.graphics_bit, i};
-    } else .{false, queue_family_properties.len - 1};
+        break .{qfp.queue_flags.graphics_bit, @intCast(i)};
+    } else .{false, @intCast(queue_family_properties.len - 1)};
 
     // Here, along with other places, makes heavy use of references to literals.
     // As far as I understand, all addresses (&) are to constant literals that
@@ -71,7 +71,7 @@ fn createLogicalDevice(self: *HelloTriangleApplication, allocator: Allocator) !v
         },
         .queue_create_info_count = 1,
         .p_queue_create_infos = @ptrCast(&vk.DeviceQueueCreateInfo{
-            .queue_family_index = @intCast(graphics_index),
+            .queue_family_index = graphics_index,
             .queue_count = 1,
             .p_queue_priorities = &.{ 0.5 },
         }),
