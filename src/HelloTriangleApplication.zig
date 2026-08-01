@@ -95,7 +95,7 @@ fn pickPhysicalDevice(self: *HelloTriangleApplication, allocator: Allocator) !vo
         return error.NoGpuFound;
     }
 
-    self.physical_device = for (physical_devices) Queue|p_device| {
+    self.physical_device = for (physical_devices) |p_device| {
         if (try isDeviceSuitable(self.instance, p_device, allocator)) {
             break p_device;
         }
