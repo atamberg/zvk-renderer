@@ -33,12 +33,16 @@
     // internet connectivity.
     .dependencies = .{
         .vulkan = .{
-            .url = "git+https://github.com/Snektron/vulkan-zig?ref=zig-0.16-compat#b496a6a561ffbbeb530b0f9ed4e059f88c0723a5",
-            .hash = "vulkan-0.0.0-r7Ytx7N9AwD7IZt5_XNHtkJ4G9qY0pCH-cpcOsbL8wzD",
+            .url = "git+https://github.com/Snektron/vulkan-zig?ref=zig-0.17-compat#1fa628fd49d89468241c2cab14bad41a312e79fc",
+            .hash = "vulkan-0.0.0-r7Ytxy2BAwCPqBJUCXp6XXMwWqFD3DNrMLWWQvRRSXOC",
         },
         .vulkan_headers = .{
             .url = "git+https://github.com/KhronosGroup/Vulkan-Headers#e3b1eec08173d6b825cd3ac88c885a63b621504a",
             .hash = "N-V-__8AAO2WewIbm0OeFBxoD5LxmEzZigF1yXmgGLuahMD5",
+        },
+        .translate_c = .{
+            .url = "git+https://codeberg.org/ziglang/translate-c?ref=zig-0.17.x#cfac21f3199b2b02ce3fd7db652aa456421fe4ab",
+            .hash = "translate_c-2.0.2-Q_BUWvBNBwDnyehSiuAJmdFcMYHYGA-Jc3KiYdrV2Dqx",
         },
     },
     .paths = .{

@@ -1,4 +1,5 @@
 const std = @import("std");
+const Translator = @import("translate_c").Translator;
 
 // Although this function looks imperative, it does not perform the build
 // directly and instead it mutates the build graph (`b`) that will be then
@@ -111,9 +112,7 @@ pub fn build(b: *std.Build) void {
 
     // This allows the user to pass arguments to the application in the build
     // command itself, like this: `zig build run -- arg1 arg2 etc`
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
+    run_cmd.addPassthruArgs();
 
     // Creates an executable that will run `test` blocks from the provided module.
     // Here `mod` needs to define a target, which is why earlier we made sure to
@@ -159,15 +158,18 @@ pub fn build(b: *std.Build) void {
     }).module("vulkan-zig");
     exe.root_module.addImport("vulkan", vulkan);
 
-    const c = b.addTranslateC(.{
-        .root_source_file = b.path("src/c.h"),
+    const translate_c = b.dependency("translate_c", .{});
+
+    const translator: Translator = .init(translate_c, .{
+        .c_source_file = b.path("src/c.h"),
         .target = target,
         .optimize = optimize,
-    }).createModule();
+        .link_system_libs = &.{
+            .{ .name = "glfw3" },
+        }
+    });
 
-    c.linkSystemLibrary("glfw3", .{});
-
-    exe.root_module.addImport("c", c);
+    exe.root_module.addImport("c", translator.mod);
 
     const options = b.addOptions();
     options.addOption(bool, "enable_validation_layers", b.option(bool, "validateVK", "Enable Vulkan Validation Layer") orelse false);

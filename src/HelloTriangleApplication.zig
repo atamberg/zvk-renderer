@@ -15,7 +15,7 @@ const validation_layers: []const []const u8 = &.{
     "VK_LAYER_KHRONOS_validation",
 };
 const required_device_extensions: []const []const u8 = &.{
-    vk.extensions.khr_swapchain.name,
+    vk.device_extensions.khr_swapchain.name,
 };
 
 window: *c.GLFWwindow = undefined,
@@ -49,7 +49,7 @@ fn createLogicalDevice(self: *HelloTriangleApplication, allocator: Allocator) !v
     var graphics_index: u32 = undefined;
 
     graphics_queue_family_property, graphics_index = for (queue_family_properties, 0..) |qfp, i| {
-        break .{qfp.queue_flags.graphics_bit, @intCast(i)};
+        break .{qfp.queue_flags.graphics, @intCast(i)};
     } else .{false, @intCast(queue_family_properties.len - 1)};
 
     // Here, along with other places, makes heavy use of references to literals.
@@ -109,7 +109,7 @@ fn isDeviceSuitable(instance: vk.InstanceProxy, p_device: vk.PhysicalDevice, all
     defer allocator.free(queue_families);
 
     const supports_graphics = for (queue_families) |q_family| {
-        if (q_family.queue_flags.graphics_bit) break true;
+        if (q_family.queue_flags.graphics) break true;
     } else false;
 
     const supports_vulkan_1_3 = device_properties.api_version >= vk.API_VERSION_1_3.toU32();
@@ -186,7 +186,7 @@ fn createInstance(self: *HelloTriangleApplication, allocator: Allocator) !void {
 
     try required_extensions.appendSlice(allocator, glfw_extensions);
     if (options.enable_validation_layers) {
-        try required_extensions.append(allocator, vk.extensions.ext_debug_utils.name);
+        try required_extensions.append(allocator, vk.instance_extensions.ext_debug_utils.name);
     }
 
     const extension_properties = try self.base_wrapper.enumerateInstanceExtensionPropertiesAlloc(null, allocator);
@@ -254,8 +254,8 @@ fn cleanup(self: *HelloTriangleApplication) void {
 fn setupDebugMessenger(self: *HelloTriangleApplication) !void {
     if (!options.enable_validation_layers) return;
 
-    const severity_flags = vk.DebugUtilsMessageSeverityFlagsEXT{.warning_bit_ext = true, .error_bit_ext = true};
-    const message_type_flags = vk.DebugUtilsMessageTypeFlagsEXT{.general_bit_ext = true, .performance_bit_ext = true, .validation_bit_ext = true};
+    const severity_flags = vk.DebugUtilsMessageSeverityFlagsEXT{.warning_ext = true, .error_ext = true};
+    const message_type_flags = vk.DebugUtilsMessageTypeFlagsEXT{.general_ext = true, .performance_ext = true, .validation_ext = true};
 
     self.debug_messager = try self.instance.createDebugUtilsMessengerEXT(&.{.message_severity = severity_flags, .message_type = message_type_flags, .pfn_user_callback = debugCallback}, null);
 }
@@ -269,8 +269,8 @@ fn debugCallback(
     _ = message_severity;
     _ = p_user_data;
 
-    const msg_type = if (message_types.general_bit_ext) "general" else if (message_types.performance_bit_ext) "performance" else if (message_types.validation_bit_ext) "validation" else "unknown";
-    //const severity = if (message_severity.warning_bit_ext) "warning" else if (message_severity.error_bit_ext) "error" else "unknown";
+    const msg_type = if (message_types.general_ext) "general" else if (message_types.performance_ext) "performance" else if (message_types.validation_ext) "validation" else "unknown";
+    //const severity = if (message_severity.warning_ext) "warning" else if (message_severity.error_ext) "error" else "unknown";
     const callback_msg = if (p_callback_data) |callback| callback.p_message orelse "No Message." else "No Data.";
 
     std.debug.print("validation layer: type {s} msg: {s}\n", .{msg_type, callback_msg});
