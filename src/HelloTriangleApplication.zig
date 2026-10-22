@@ -21,6 +21,7 @@ const required_device_extensions: []const []const u8 = &.{
 window: *c.GLFWwindow = undefined,
 instance: vk.InstanceProxy = undefined,
 debug_messager: vk.DebugUtilsMessengerEXT = undefined,
+surface: vk.SurfaceKHR = undefined,
 base_wrapper: vk.BaseWrapper = undefined,
 physical_device: vk.PhysicalDevice = undefined,
 device: vk.DeviceProxy = undefined,
@@ -37,20 +38,28 @@ pub fn run(self: *HelloTriangleApplication, allocator: Allocator) !void {
 fn initVulkan(self: *HelloTriangleApplication, allocator: Allocator) !void {
     try self.createInstance(allocator);
     try self.setupDebugMessenger();
+    try self.createSurface();
     try self.pickPhysicalDevice(allocator);
     try self.createLogicalDevice(allocator);
+}
+
+fn createSurface(self: *HelloTriangleApplication) !void {
+    if (glfw.createWindowSurface(self.instance, self.window, null, &self.surface) != .success) return error.GlfwCreateSurfaceFailed;
 }
 
 fn createLogicalDevice(self: *HelloTriangleApplication, allocator: Allocator) !void {
 
     const queue_family_properties = try self.instance.getPhysicalDeviceQueueFamilyPropertiesAlloc(self.physical_device, allocator);
 
-    var graphics_queue_family_property: bool = undefined;
+    var graphics_queue_family_property: vk.QueueFamilyProperties = undefined;
     var graphics_index: u32 = undefined;
 
     graphics_queue_family_property, graphics_index = for (queue_family_properties, 0..) |qfp, i| {
-        break .{qfp.queue_flags.graphics, @intCast(i)};
-    } else .{false, @intCast(queue_family_properties.len - 1)};
+        const qfp_index: u32 = @intCast(i);
+        if (qfp.queue_flags.graphics == true and try self.instance.getPhysicalDeviceSurfaceSupportKHR(self.physical_device, qfp_index, self.surface) == .true) {
+            break .{qfp, qfp_index};
+        }
+    } else return error.NoGraphicsQueueFound;
 
     // Here, along with other places, makes heavy use of references to literals.
     // As far as I understand, all addresses (&) are to constant literals that

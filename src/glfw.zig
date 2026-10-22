@@ -13,3 +13,7 @@ pub fn getRequiredInstanceExtensions() []const [*:0]const u8 {
     var ext_count: u32 = 0;
     return @ptrCast(c.glfwGetRequiredInstanceExtensions(&ext_count)[0..ext_count]);
 }
+
+pub fn createWindowSurface(vk_instance: vk.InstanceProxy, window: *c.GLFWwindow, allocationCallback: ?*vk.AllocationCallbacks, surface: *vk.SurfaceKHR) vk.Result {
+    return @fromBackingInt(c.glfwCreateWindowSurface(@ptrCast(vk_instance.handle), window, @ptrCast(allocationCallback), @ptrCast(surface)));
+}
