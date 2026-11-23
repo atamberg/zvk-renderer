@@ -26,6 +26,10 @@ base_wrapper: vk.BaseWrapper = undefined,
 physical_device: vk.PhysicalDevice = undefined,
 device: vk.DeviceProxy = undefined,
 graphics_queue: vk.Queue = undefined,
+swap_chain: vk.SwapchainKHR = undefined,
+swap_chain_images: []vk.Image = undefined,
+swap_chain_surface_format: vk.SurfaceFormatKHR = undefined,
+swap_chain_extent: vk.Extent2D = undefined,
 
 pub fn run(self: *HelloTriangleApplication, allocator: Allocator) !void {
     try self.initWindow();
@@ -41,6 +45,76 @@ fn initVulkan(self: *HelloTriangleApplication, allocator: Allocator) !void {
     try self.createSurface();
     try self.pickPhysicalDevice(allocator);
     try self.createLogicalDevice(allocator);
+    try self.createSwapChain(allocator);
+}
+
+fn chooseSwapSurfaceFormat(availableFormats: []vk.SurfaceFormatKHR) vk.SurfaceFormatKHR {
+    return for (availableFormats) |format| {
+        if (format.format == vk.Format.b8g8r8a8_srgb and format.color_space == vk.ColorSpaceKHR.srgb_nonlinear_khr) break format;
+    } else availableFormats[0];
+}
+
+fn chooseSwapPresetMode(availablePresetModes: []vk.PresentModeKHR) vk.PresentModeKHR {
+    std.debug.assert(for (availablePresetModes) |preset_mode| {
+        if (preset_mode == vk.PresentModeKHR.fifo_khr) break true;
+    } else false); // equivalent to std::ranges::any_of in the C++.
+
+    // check if mailbox exists (aka triple-buffering) and if so return it.
+    return if (for (availablePresetModes) |preset_mode| {
+            if (preset_mode == vk.PresentModeKHR.mailbox_khr) break true;
+        } else false) vk.PresentModeKHR.mailbox_khr else vk.PresentModeKHR.fifo_khr;
+}
+
+fn chooseSwapExtent(self: HelloTriangleApplication, capabilities: vk.SurfaceCapabilitiesKHR) vk.Extent2D {
+    if (capabilities.current_extent.width != std.math.maxInt(u32)) {
+        return capabilities.current_extent;
+    }
+    var extent_width: u32 = undefined;
+    var extent_height: u32 = undefined;
+    c.glfwGetFramebufferSize(self.window, @ptrCast(&extent_width), @ptrCast(&extent_height));
+
+    return .{
+        .width = std.math.clamp(extent_width, capabilities.min_image_extent.width, capabilities.max_image_extent.width),
+        .height = std.math.clamp(extent_height, capabilities.min_image_extent.height, capabilities.max_image_extent.height)
+    };
+}
+
+fn chooseSwapMinImageCount(surface_capabilities: vk.SurfaceCapabilitiesKHR) u32 {
+    var min_image_count: u32 = @max(3, surface_capabilities.min_image_count);
+
+    if (0 < surface_capabilities.max_image_count and surface_capabilities.max_image_count < min_image_count) min_image_count = surface_capabilities.max_image_count;
+
+    return min_image_count;
+}
+
+fn createSwapChain(self: *HelloTriangleApplication, allocator: Allocator) !void {
+    const surface_capabilities = try self.instance.getPhysicalDeviceSurfaceCapabilitiesKHR(self.physical_device, self.surface);
+    const swap_chain_extent = self.chooseSwapExtent(surface_capabilities);
+    const min_image_count = chooseSwapMinImageCount(surface_capabilities);
+
+    const available_formats = try self.instance.getPhysicalDeviceSurfaceFormatsAllocKHR(self.physical_device, self.surface, allocator);
+    const available_present_modes = try self.instance.getPhysicalDeviceSurfacePresentModesAllocKHR(self.physical_device, self.surface, allocator);
+
+    const swap_chain_surface_format = chooseSwapSurfaceFormat(available_formats);
+
+    self.swap_chain = try self.device.createSwapchainKHR(&vk.SwapchainCreateInfoKHR{
+        .surface = self.surface,
+        .min_image_count = min_image_count,
+        .image_format = swap_chain_surface_format.format,
+        .image_color_space = swap_chain_surface_format.color_space,
+        .image_extent = swap_chain_extent,
+        .image_array_layers = 1,
+        .image_usage = vk.ImageUsageFlags{ .color_attachment = true },
+        .image_sharing_mode = .exclusive,
+        .pre_transform = surface_capabilities.current_transform,
+        .composite_alpha = vk.CompositeAlphaFlagsKHR{.opaque_khr = true},
+        .present_mode = chooseSwapPresetMode(available_present_modes),
+        .clipped = .true,
+    }, null);
+
+    self.swap_chain_images = try self.device.getSwapchainImagesAllocKHR(self.swap_chain, allocator);
+    self.swap_chain_surface_format = swap_chain_surface_format;
+    self.swap_chain_extent = swap_chain_extent;
 }
 
 fn createSurface(self: *HelloTriangleApplication) !void {
