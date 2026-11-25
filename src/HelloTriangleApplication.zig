@@ -30,6 +30,7 @@ swap_chain: vk.SwapchainKHR = undefined,
 swap_chain_images: []vk.Image = undefined,
 swap_chain_surface_format: vk.SurfaceFormatKHR = undefined,
 swap_chain_extent: vk.Extent2D = undefined,
+swap_chain_image_views: []vk.ImageView = undefined,
 
 pub fn run(self: *HelloTriangleApplication, allocator: Allocator) !void {
     try self.initWindow();
@@ -46,6 +47,34 @@ fn initVulkan(self: *HelloTriangleApplication, allocator: Allocator) !void {
     try self.pickPhysicalDevice(allocator);
     try self.createLogicalDevice(allocator);
     try self.createSwapChain(allocator);
+    try self.createImageViews(allocator);
+}
+
+fn createImageViews(self: *HelloTriangleApplication, allocator: Allocator) !void {
+    //std.debug.assert(self.swap_chain_image_views.len == 0);
+
+    var image_view_create_info = vk.ImageViewCreateInfo{
+        .view_type = vk.ImageViewType.@"2d",
+        .format = self.swap_chain_surface_format.format,
+        .subresource_range = .{
+            .aspect_mask = vk.ImageAspectFlags{ .color = true },
+            .base_mip_level = 0,
+            .level_count = 1,
+            .base_array_layer = 0,
+            .layer_count = 1
+        },
+        .components = .{ .r = vk.ComponentSwizzle.identity, .b = vk.ComponentSwizzle.identity, .g = vk.ComponentSwizzle.identity, .a = vk.ComponentSwizzle.identity },
+        .image = undefined,
+    };
+
+    self.swap_chain_image_views = try allocator.alloc(vk.ImageView, self.swap_chain_images.len);
+    errdefer allocator.free(self.swap_chain_image_views);
+
+    for (self.swap_chain_images, self.swap_chain_image_views) |image, *image_view| {
+        image_view_create_info.image = image;
+        image_view.* = try self.device.createImageView(&image_view_create_info, null);
+    }
+
 }
 
 fn chooseSwapSurfaceFormat(availableFormats: []vk.SurfaceFormatKHR) vk.SurfaceFormatKHR {
